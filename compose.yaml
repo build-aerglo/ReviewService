@@ -1,0 +1,7 @@
+﻿services:
+  reviewservice.api:
+    image: reviewservice.api
+    build:
+      context: .
+      dockerfile: ReviewService.Api/Dockerfile
+
