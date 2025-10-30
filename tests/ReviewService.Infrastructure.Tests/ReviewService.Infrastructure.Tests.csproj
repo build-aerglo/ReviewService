@@ -22,6 +22,11 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Update="appsettings.json">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+    <ItemGroup>
         <Using Include="NUnit.Framework"/>
     </ItemGroup>
 

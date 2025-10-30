@@ -1,5 +1,9 @@
 using Microsoft.OpenApi.Models;
-
+using ReviewService.Application.Interfaces;
+using ReviewService.Application.Services;
+using ReviewService.Domain.Repositories;
+using ReviewService.Infrastructure.Clients;
+using ReviewService.Infrastructure.Repositories;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,6 +15,49 @@ builder.Services.AddControllers();
 
 
 
+
+
+
+//Register Dapper Repos and Application Services
+builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
+builder.Services.AddScoped<IReviewService, ReviewService.Application.Services.ReviewService>();
+
+//Register HttpClient for User,Business and Location Services
+builder.Services.AddHttpClient<IBusinessServiceClient, BusinessServiceClient>(client =>
+{
+    var baseUrl = builder.Configuration["Services:BusinessServiceBaseUrl"];
+    if (string.IsNullOrWhiteSpace(baseUrl))
+        throw new InvalidOperationException("Missing configuration: Services:BusinessServiceBaseUrl");
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+
+});
+
+
+builder.Services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
+{
+    var baseUrl = builder.Configuration["Services:UserServiceBaseUrl"];
+    if (string.IsNullOrWhiteSpace(baseUrl))
+        throw new InvalidOperationException("Missing configuration: Services:UserServiceBaseUrl");
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
+
+
+builder.Services.AddHttpClient<ILocationServiceClient, LocationServiceClient>(client =>
+{
+    var baseUrl = builder.Configuration["Services:LocationServiceBaseUrl"];
+    if (string.IsNullOrWhiteSpace(baseUrl))
+        throw new InvalidOperationException("Missing configuration: Services:LocationServiceBaseUrl");
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
