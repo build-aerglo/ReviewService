@@ -13,7 +13,6 @@ public class ReviewServiceTests
     private Mock<IReviewRepository> _mockReviewRepository = null!;
     private Mock<IBusinessServiceClient> _mockBusinessServiceClient = null!;
     private Mock<IUserServiceClient> _mockUserServiceClient = null!;
-    private Mock<ILocationServiceClient> _mockLocationServiceClient = null!;
     private Application.Services.ReviewService _service = null!;
 
     [SetUp]
@@ -22,13 +21,11 @@ public class ReviewServiceTests
         _mockReviewRepository = new Mock<IReviewRepository>();
         _mockBusinessServiceClient = new Mock<IBusinessServiceClient>();
         _mockUserServiceClient = new Mock<IUserServiceClient>();
-        _mockLocationServiceClient = new Mock<ILocationServiceClient>();
 
         _service = new Application.Services.ReviewService(
             _mockReviewRepository.Object,
             _mockBusinessServiceClient.Object,
-            _mockUserServiceClient.Object,
-            _mockLocationServiceClient.Object
+            _mockUserServiceClient.Object
         );
     }
 
@@ -146,65 +143,7 @@ public class ReviewServiceTests
         _mockReviewRepository.Verify(r => r.AddAsync(It.IsAny<Review>()), Times.Never);
     }
 
-    // TODO_ enable this test when UserService implements UserExistsAsync endpoint
-    // [Test]
-    // public void CreateReview_ShouldThrow_WhenUserDoesNotExist()
-    // {
-    //     // ARRANGE
-    //     var businessId = Guid.NewGuid();
-    //     var reviewerId = Guid.NewGuid();
-    //     var dto = new CreateReviewDto(
-    //         BusinessId: businessId,
-    //         LocationId: null,
-    //         ReviewerId: reviewerId,
-    //         Email: null,
-    //         StarRating: 3,
-    //         ReviewBody: "User doesn't exist but trying to review.",
-    //         PhotoUrls: null,
-    //         ReviewAsAnon: false
-    //     );
-    //
-    //     _mockBusinessServiceClient.Setup(c => c.BusinessExistsAsync(businessId)).ReturnsAsync(true);
-    //     _mockUserServiceClient.Setup(c => c.UserExistsAsync(reviewerId)).ReturnsAsync(false);
-    //
-    //     // ACT & ASSERT
-    //     var ex = Assert.ThrowsAsync<UserNotFoundException>(
-    //         async () => await _service.CreateReviewAsync(dto)
-    //     );
-    //
-    //     Assert.That(ex!.Message, Does.Contain(reviewerId.ToString()));
-    //     _mockReviewRepository.Verify(r => r.AddAsync(It.IsAny<Review>()), Times.Never);
-    // }
 
-    // TODO_ enable this test when LocationService implements LocationExistsAsync endpoint
-    // [Test]
-    // public void CreateReview_ShouldThrow_WhenLocationDoesNotExist()
-    // {
-    //     // ARRANGE
-    //     var businessId = Guid.NewGuid();
-    //     var locationId = Guid.NewGuid();
-    //     var dto = new CreateReviewDto(
-    //         BusinessId: businessId,
-    //         LocationId: locationId,
-    //         ReviewerId: null,
-    //         Email: "guest@example.com",
-    //         StarRating: 4,
-    //         ReviewBody: "Location doesn't exist but trying to review.",
-    //         PhotoUrls: null,
-    //         ReviewAsAnon: true
-    //     );
-    //
-    //     _mockBusinessServiceClient.Setup(c => c.BusinessExistsAsync(businessId)).ReturnsAsync(true);
-    //     _mockLocationServiceClient.Setup(c => c.LocationExistsAsync(locationId)).ReturnsAsync(false);
-    //
-    //     // ACT & ASSERT
-    //     var ex = Assert.ThrowsAsync<InvalidReviewDataException>(
-    //         async () => await _service.CreateReviewAsync(dto)
-    //     );
-    //
-    //     Assert.That(ex!.Message, Does.Contain(locationId.ToString()));
-    //     _mockReviewRepository.Verify(r => r.AddAsync(It.IsAny<Review>()), Times.Never);
-    // }
 
     [Test]
     public void CreateReview_ShouldThrow_WhenReviewSaveFails()

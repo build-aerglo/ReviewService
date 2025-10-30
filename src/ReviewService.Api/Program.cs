@@ -48,27 +48,6 @@ builder.Services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
 });
 
 
-builder.Services.AddHttpClient<ILocationServiceClient, LocationServiceClient>(client =>
-{
-    var baseUrl = builder.Configuration["Services:LocationServiceBaseUrl"];
-    if (string.IsNullOrWhiteSpace(baseUrl))
-        throw new InvalidOperationException("Missing configuration: Services:LocationServiceBaseUrl");
-
-    client.BaseAddress = new Uri(baseUrl);
-    client.Timeout = TimeSpan.FromSeconds(10);
-    client.DefaultRequestHeaders.Add("Accept", "application/json");
-});
-
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    options.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "REVIEW_SERVICE",
-        Version = "v1",
-        Description = "Review Service Built eith .Net 9"
-    });
-});
 
 var app = builder.Build();
 

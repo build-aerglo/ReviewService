@@ -9,8 +9,7 @@ namespace ReviewService.Application.Services;
 public class ReviewService(
     IReviewRepository reviewRepository,
     IBusinessServiceClient businessServiceClient,
-    IUserServiceClient userServiceClient,
-    ILocationServiceClient locationServiceClient
+    IUserServiceClient userServiceClient
 ) : IReviewService
 {
     public async Task<ReviewResponseDto> CreateReviewAsync(CreateReviewDto dto)
@@ -20,21 +19,7 @@ public class ReviewService(
         if (!businessExists)
             throw new BusinessNotFoundException(dto.BusinessId);
 
-        //  TODO: Validate user exists when UserService implements UserExistsAsync endpoint
-        // if (dto.ReviewerId.HasValue)
-        // {
-        //     var userExists = await userServiceClient.UserExistsAsync(dto.ReviewerId.Value);
-        //     if (!userExists)
-        //         throw new UserNotFoundException(dto.ReviewerId.Value);
-        // }
 
-        //  TODO: Validate location exists when LocationService implements LocationExistsAsync endpoint
-        // if (dto.LocationId.HasValue)
-        // {
-        //     var locationExists = await locationServiceClient.LocationExistsAsync(dto.LocationId.Value);
-        //     if (!locationExists)
-        //         throw new InvalidReviewDataException($"Location with ID '{dto.LocationId}' does not exist.");
-        // }
 
         //  Create the review entity
         var review = new Review(

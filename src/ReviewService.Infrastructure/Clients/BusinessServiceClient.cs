@@ -15,17 +15,17 @@ public class BusinessServiceClient(HttpClient httpClient, ILogger<BusinessServic
 
             if (response.StatusCode == HttpStatusCode.OK)
             {
-                logger.LogInformation("✅ Business {BusinessId} exists.", businessId);
+                logger.LogInformation(" Business {BusinessId} exists.", businessId);
                 return true;
             }
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                logger.LogWarning("❌ Business {BusinessId} not found.", businessId);
+                logger.LogWarning(" Business {BusinessId} not found.", businessId);
                 return false;
             }
 
-            logger.LogWarning("⚠️ Unexpected response from Business Service: {StatusCode}", response.StatusCode);
+            logger.LogWarning("Unexpected response from Business Service: {StatusCode}", response.StatusCode);
             return false;
         }
         catch (HttpRequestException ex)

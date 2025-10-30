@@ -15,17 +15,17 @@ public class UserServiceClient(HttpClient httpClient, ILogger<UserServiceClient>
 
             if (response.StatusCode == HttpStatusCode.OK)
             {
-                logger.LogInformation("✅ User {UserId} exists.", userId);
+                logger.LogInformation(" User {UserId} exists.", userId);
                 return true;
             }
 
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                logger.LogWarning("❌ User {UserId} not found.", userId);
+                logger.LogWarning(" User {UserId} not found.", userId);
                 return false;
             }
 
-            logger.LogWarning("⚠️ Unexpected response from User Service: {StatusCode}", response.StatusCode);
+            logger.LogWarning(" Unexpected response from User Service: {StatusCode}", response.StatusCode);
             return false;
         }
         catch (HttpRequestException ex)
