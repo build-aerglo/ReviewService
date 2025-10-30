@@ -19,7 +19,7 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "REVIEW_SERVICE",
         Version = "v1",
-        Description = "Review Service Built eith .Net 9"
+        Description = "Review Service Built with .Net 9"
     });
 });
 
