@@ -48,6 +48,19 @@ builder.Services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
 });
 
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "REVIEW_SERVICE",
+        Version = "v1",
+        Description = "Review Service Built with .Net 9"
+    });
+});
+
+
+
 
 var app = builder.Build();
 
