@@ -1,8 +1,0 @@
-﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
-	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=a134c2cc_002D5771_002D4d46_002D9ccd_002D5f2c0f0523d1/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="All tests from &amp;lt;ReviewService.Api.Tests&amp;gt;" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
-  &lt;Or&gt;&#xD;
-    &lt;Project Location="C:\Users\oseah\Desktop\PROGRAM\AERGLO\REVIEW_SERVICE\ReviewService\tests\ReviewService.Api.Tests" Presentation="&amp;lt;ReviewService.Api.Tests&amp;gt;" /&gt;&#xD;
-    &lt;Project Location="C:\Users\oseah\Desktop\PROGRAM\AERGLO\REVIEW_SERVICE\ReviewService\tests\ReviewService.Application.Tests" Presentation="&amp;lt;ReviewService.Application.Tests&amp;gt;" /&gt;&#xD;
-    &lt;Project Location="C:\Users\oseah\Desktop\PROGRAM\AERGLO\REVIEW_SERVICE\ReviewService\tests\ReviewService.Infrastructure.Tests" Presentation="&amp;lt;ReviewService.Infrastructure.Tests&amp;gt;" /&gt;&#xD;
-  &lt;/Or&gt;&#xD;
-&lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>
