@@ -19,8 +19,6 @@ public class ReviewService(
         if (!businessExists)
             throw new BusinessNotFoundException(dto.BusinessId);
 
-
-
         //  Create the review entity
         var review = new Review(
             businessId: dto.BusinessId,
@@ -92,5 +90,54 @@ public class ReviewService(
             ReviewAsAnon: r.ReviewAsAnon,
             CreatedAt: r.CreatedAt
         ));
+    }
+
+    public async Task<ReviewResponseDto> UpdateReviewAsync(Guid id, UpdateReviewDto dto, Guid? reviewerId, string? email)
+    {
+        // 1. Get existing review
+        var review = await reviewRepository.GetByIdAsync(id);
+        if (review is null)
+            throw new ReviewNotFoundException(id);
+
+        // 2. Authorization check - user can only edit their own reviews
+        var isAuthorized = false;
+
+        if (reviewerId.HasValue && review.ReviewerId.HasValue)
+        {
+            // Registered user trying to edit their own review
+            isAuthorized = review.ReviewerId.Value == reviewerId.Value;
+        }
+        else if (!string.IsNullOrWhiteSpace(email) && !string.IsNullOrWhiteSpace(review.Email))
+        {
+            // Guest user trying to edit their own review
+            isAuthorized = review.Email.Equals(email, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (!isAuthorized)
+            throw new UnauthorizedReviewAccessException(id);
+
+        // 3. Update the review
+        review.Update(dto.StarRating, dto.ReviewBody, dto.PhotoUrls, dto.ReviewAsAnon);
+
+        // 4. Save changes
+        await reviewRepository.UpdateAsync(review);
+
+        // 5. Fetch and return updated review
+        var updatedReview = await reviewRepository.GetByIdAsync(id);
+        if (updatedReview is null)
+            throw new ReviewCreationFailedException("Failed to update review record.");
+
+        return new ReviewResponseDto(
+            Id: updatedReview.Id,
+            BusinessId: updatedReview.BusinessId,
+            LocationId: updatedReview.LocationId,
+            ReviewerId: updatedReview.ReviewerId,
+            Email: updatedReview.Email,
+            StarRating: updatedReview.StarRating,
+            ReviewBody: updatedReview.ReviewBody,
+            PhotoUrls: updatedReview.PhotoUrls,
+            ReviewAsAnon: updatedReview.ReviewAsAnon,
+            CreatedAt: updatedReview.CreatedAt
+        );
     }
 }

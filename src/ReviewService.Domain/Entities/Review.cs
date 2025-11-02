@@ -55,7 +55,7 @@ public class Review
         UpdatedAt = DateTime.UtcNow;
     }
 
-    public void Update(int? starRating, string? reviewBody, string[]? photoUrls)
+    public void Update(int? starRating, string? reviewBody, string[]? photoUrls, bool? reviewAsAnon)
     {
         if (starRating.HasValue)
         {
@@ -76,6 +76,11 @@ public class Review
             if (photoUrls.Length > 3)
                 throw new ArgumentException("Maximum 3 photos allowed.", nameof(photoUrls));
             PhotoUrls = photoUrls;
+        }
+
+        if (reviewAsAnon.HasValue)
+        {
+            ReviewAsAnon = reviewAsAnon.Value;
         }
 
         UpdatedAt = DateTime.UtcNow;

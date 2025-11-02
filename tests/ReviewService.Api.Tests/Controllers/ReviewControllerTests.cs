@@ -110,36 +110,6 @@ public class ReviewControllerTests
         Assert.That(notFoundResult.Value?.ToString(), Does.Contain(businessId.ToString()));
     }
 
-    // TODO_ enable this test when UserService implements UserExistsAsync endpoint
-    // [Test]
-    // public async Task CreateReview_ShouldReturnNotFound_WhenUserDoesNotExist()
-    // {
-    //     // ARRANGE
-    //     var reviewerId = Guid.NewGuid();
-    //     var dto = new CreateReviewDto(
-    //         BusinessId: Guid.NewGuid(),
-    //         LocationId: null,
-    //         ReviewerId: reviewerId,
-    //         Email: null,
-    //         StarRating: 3,
-    //         ReviewBody: "User doesn't exist but trying to review.",
-    //         PhotoUrls: null,
-    //         ReviewAsAnon: false
-    //     );
-    //
-    //     _mockReviewService
-    //         .Setup(s => s.CreateReviewAsync(dto))
-    //         .ThrowsAsync(new UserNotFoundException(reviewerId));
-    //
-    //     // ACT
-    //     var result = await _controller.CreateReview(dto);
-    //
-    //     // ASSERT
-    //     var notFoundResult = result as NotFoundObjectResult;
-    //     Assert.That(notFoundResult, Is.Not.Null);
-    //     Assert.That(notFoundResult!.StatusCode, Is.EqualTo(404));
-    // }
-
     [Test]
     public async Task CreateReview_ShouldReturnBadRequest_WhenInvalidData()
     {
@@ -400,5 +370,252 @@ public class ReviewControllerTests
 
         var returnedReviews = okResult!.Value as IEnumerable<ReviewResponseDto>;
         Assert.That(returnedReviews, Is.Empty);
+    }
+
+    // ======================================
+    // UPDATE REVIEW CONTROLLER TESTS
+    // ======================================
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnOk_WhenSuccessful_RegisteredUser()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var dto = new UpdateReviewDto(
+            StarRating: 5,
+            ReviewBody: "Updated: Excellent service! Changed my mind.",
+            PhotoUrls: new[] { "photo1.jpg" },
+            ReviewAsAnon: true
+        );
+
+        var response = new ReviewResponseDto(
+            Id: reviewId,
+            BusinessId: Guid.NewGuid(),
+            LocationId: null,
+            ReviewerId: reviewerId,
+            Email: null,
+            StarRating: 5,
+            ReviewBody: "Updated: Excellent service! Changed my mind.",
+            PhotoUrls: new[] { "photo1.jpg" },
+            ReviewAsAnon: true,
+            CreatedAt: DateTime.UtcNow.AddDays(-1)
+        );
+
+        _mockReviewService
+            .Setup(s => s.UpdateReviewAsync(reviewId, dto, reviewerId, null))
+            .ReturnsAsync(response);
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, reviewerId, null);
+
+        // ASSERT
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        Assert.That(okResult!.StatusCode, Is.EqualTo(200));
+
+        var returnedValue = okResult.Value as ReviewResponseDto;
+        Assert.That(returnedValue!.StarRating, Is.EqualTo(5));
+        Assert.That(returnedValue.ReviewBody, Does.Contain("Updated:"));
+        Assert.That(returnedValue.ReviewAsAnon, Is.True);
+
+        _mockReviewService.Verify(s => s.UpdateReviewAsync(reviewId, dto, reviewerId, null), Times.Once);
+    }
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnOk_WhenSuccessful_GuestUser()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var email = "guest@example.com";
+        var dto = new UpdateReviewDto(
+            StarRating: 4,
+            ReviewBody: "Updated: Actually pretty good service.",
+            PhotoUrls: null,
+            ReviewAsAnon: false
+        );
+
+        var response = new ReviewResponseDto(
+            Id: reviewId,
+            BusinessId: Guid.NewGuid(),
+            LocationId: null,
+            ReviewerId: null,
+            Email: email,
+            StarRating: 4,
+            ReviewBody: "Updated: Actually pretty good service.",
+            PhotoUrls: null,
+            ReviewAsAnon: false,
+            CreatedAt: DateTime.UtcNow.AddDays(-2)
+        );
+
+        _mockReviewService
+            .Setup(s => s.UpdateReviewAsync(reviewId, dto, null, email))
+            .ReturnsAsync(response);
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, null, email);
+
+        // ASSERT
+        var okResult = result as OkObjectResult;
+        Assert.That(okResult, Is.Not.Null);
+        Assert.That(okResult!.StatusCode, Is.EqualTo(200));
+
+        var returnedValue = okResult.Value as ReviewResponseDto;
+        Assert.That(returnedValue!.Email, Is.EqualTo(email));
+        Assert.That(returnedValue.StarRating, Is.EqualTo(4));
+    }
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnBadRequest_WhenNoAuthorizationProvided()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var dto = new UpdateReviewDto(5, "Updated review", null, null);
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, null, null);
+
+        // ASSERT
+        var badRequestResult = result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult!.StatusCode, Is.EqualTo(400));
+        Assert.That(badRequestResult.Value?.ToString(), Does.Contain("Either reviewerId or email must be provided"));
+
+        _mockReviewService.Verify(s => s.UpdateReviewAsync(
+            It.IsAny<Guid>(), It.IsAny<UpdateReviewDto>(), It.IsAny<Guid?>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnNotFound_WhenReviewDoesNotExist()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var dto = new UpdateReviewDto(5, "Updated review for non-existent review", null, null);
+
+        _mockReviewService
+            .Setup(s => s.UpdateReviewAsync(reviewId, dto, reviewerId, null))
+            .ThrowsAsync(new ReviewNotFoundException(reviewId));
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, reviewerId, null);
+
+        // ASSERT
+        var notFoundResult = result as NotFoundObjectResult;
+        Assert.That(notFoundResult, Is.Not.Null);
+        Assert.That(notFoundResult!.StatusCode, Is.EqualTo(404));
+        Assert.That(notFoundResult.Value?.ToString(), Does.Contain(reviewId.ToString()));
+    }
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnForbidden_WhenUnauthorized()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var dto = new UpdateReviewDto(5, "Trying to edit someone else's review", null, null);
+
+        _mockReviewService
+            .Setup(s => s.UpdateReviewAsync(reviewId, dto, reviewerId, null))
+            .ThrowsAsync(new UnauthorizedReviewAccessException(reviewId));
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, reviewerId, null);
+
+        // ASSERT
+        var forbiddenResult = result as ObjectResult;
+        Assert.That(forbiddenResult, Is.Not.Null);
+        Assert.That(forbiddenResult!.StatusCode, Is.EqualTo(403));
+        Assert.That(forbiddenResult.Value?.ToString(), Does.Contain("Unauthorized access"));
+    }
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnBadRequest_WhenValidationFails()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var dto = new UpdateReviewDto(
+            StarRating: 6, // Invalid
+            ReviewBody: null,
+            PhotoUrls: null,
+            ReviewAsAnon: null
+        );
+
+        _mockReviewService
+            .Setup(s => s.UpdateReviewAsync(reviewId, dto, reviewerId, null))
+            .ThrowsAsync(new ArgumentException("Star rating must be between 1 and 5."));
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, reviewerId, null);
+
+        // ASSERT
+        var badRequestResult = result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult!.StatusCode, Is.EqualTo(400));
+        Assert.That(badRequestResult.Value?.ToString(), Does.Contain("Star rating"));
+    }
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnInternalServerError_WhenUpdateFails()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var dto = new UpdateReviewDto(5, "Updated review content", null, null);
+
+        _mockReviewService
+            .Setup(s => s.UpdateReviewAsync(reviewId, dto, reviewerId, null))
+            .ThrowsAsync(new ReviewCreationFailedException("Failed to update review record."));
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, reviewerId, null);
+
+        // ASSERT
+        var errorResult = result as ObjectResult;
+        Assert.That(errorResult, Is.Not.Null);
+        Assert.That(errorResult!.StatusCode, Is.EqualTo(500));
+        Assert.That(errorResult.Value?.ToString(), Does.Contain("Failed to update review record"));
+    }
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnInternalServerError_WhenUnexpectedErrorOccurs()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var dto = new UpdateReviewDto(5, "Updated review content", null, null);
+
+        _mockReviewService
+            .Setup(s => s.UpdateReviewAsync(reviewId, dto, reviewerId, null))
+            .ThrowsAsync(new Exception("Unexpected failure"));
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, reviewerId, null);
+
+        // ASSERT
+        var errorResult = result as ObjectResult;
+        Assert.That(errorResult, Is.Not.Null);
+        Assert.That(errorResult!.StatusCode, Is.EqualTo(500));
+        Assert.That(errorResult.Value?.ToString(), Does.Contain("Internal server error occurred"));
+    }
+
+    [Test]
+    public async Task UpdateReview_ShouldReturnBadRequest_WhenModelStateInvalid()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+        var dto = new UpdateReviewDto(null, null, null, null);
+
+        _controller.ModelState.AddModelError("dto", "At least one field must be provided");
+
+        // ACT
+        var result = await _controller.UpdateReview(reviewId, dto, reviewerId, null);
+
+        // ASSERT
+        var badRequestResult = result as BadRequestObjectResult;
+        Assert.That(badRequestResult, Is.Not.Null);
+        Assert.That(badRequestResult!.StatusCode, Is.EqualTo(400));
     }
 }

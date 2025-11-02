@@ -89,4 +89,52 @@ public class ReviewController(IReviewService service, ILogger<ReviewController> 
             return StatusCode(500, new { error = "Internal server error occurred." });
         }
     }
+
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> UpdateReview(
+        Guid id, 
+        [FromBody] UpdateReviewDto dto,
+        [FromQuery] Guid? reviewerId,
+        [FromQuery] string? email)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        // Validate that either reviewerId or email is provided
+        if (!reviewerId.HasValue && string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest(new { error = "Either reviewerId or email must be provided for authorization." });
+        }
+
+        try
+        {
+            var result = await service.UpdateReviewAsync(id, dto, reviewerId, email);
+            return Ok(result);
+        }
+        catch (ReviewNotFoundException ex)
+        {
+            logger.LogWarning(ex, "Review not found: {ReviewId}", id);
+            return NotFound(new { error = ex.Message });
+        }
+        catch (UnauthorizedReviewAccessException ex)
+        {
+            logger.LogWarning(ex, "Unauthorized access attempt to review: {ReviewId}", id);
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            logger.LogWarning(ex, "Validation error: {Message}", ex.Message);
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (ReviewCreationFailedException ex)
+        {
+            logger.LogError(ex, "Review update failed");
+            return StatusCode(500, new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error updating review {ReviewId}", id);
+            return StatusCode(500, new { error = "Internal server error occurred." });
+        }
+    }
 }
