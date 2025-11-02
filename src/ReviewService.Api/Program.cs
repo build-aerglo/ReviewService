@@ -73,16 +73,13 @@ app.UseHttpsRedirection();
 
 
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// 1️⃣ Swagger setup
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "v1");
-        options.RoutePrefix = "swagger";
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "User Service API v1");
+    options.RoutePrefix = ""; // load Swagger at root
+});
 
 
 app.MapControllers();
