@@ -54,7 +54,7 @@ public class ReviewRepositoryTests
         await conn.ExecuteAsync("DELETE FROM users;");
     }
 
-    // 🧩 Helper: insert dummy business for FK constraint
+    // insert dummy business for FK constraint
     private async Task<Guid> InsertDummyBusinessAsync()
     {
         var id = Guid.NewGuid();
@@ -66,7 +66,7 @@ public class ReviewRepositoryTests
         return id;
     }
 
-    // 🧩 Helper: insert dummy location for FK constraint
+    // insert dummy location for FK constraint
     private async Task<Guid> InsertDummyLocationAsync()
     {
         var id = Guid.NewGuid();
@@ -78,7 +78,7 @@ public class ReviewRepositoryTests
         return id;
     }
 
-    // 🧩 Helper: insert dummy user for FK constraint
+    //  insert dummy user for FK constraint
     private async Task<Guid> InsertDummyUserAsync()
     {
         var id = Guid.NewGuid();
@@ -151,7 +151,7 @@ public class ReviewRepositoryTests
             businessId,
             null,
             null,
-            "guest@example.com", // ✅ Fixed: Guest reviews need email
+            "guest@example.com",
             4,
             "Good service overall. Would definitely come back again.",
             null,
@@ -206,5 +206,42 @@ public class ReviewRepositoryTests
         Assert.That(fetched.ReviewerId, Is.EqualTo(reviewerId));
         Assert.That(fetched.PhotoUrls, Is.Not.Null);
         Assert.That(fetched.PhotoUrls!.Length, Is.EqualTo(3));
+    }
+
+    [Test]
+    public async Task UpdateAsync_ShouldUpdateReview_WhenReviewExists()
+    {
+        // Arrange
+        var businessId = await InsertDummyBusinessAsync();
+        var review = new Review(
+            businessId: businessId,
+            locationId: null,
+            reviewerId: null,
+            email: "update@example.com",
+            starRating: 3,
+            reviewBody: "Original review content that will be updated later.",
+            photoUrls: null,
+            reviewAsAnon: false
+        );
+
+        await _repository.AddAsync(review);
+
+        // Act - Update the review
+        review.Update(
+            starRating: 5,
+            reviewBody: "Updated review content after reconsideration.",
+            photoUrls: new[] { "new-photo.jpg" },
+            reviewAsAnon: true
+        );
+        await _repository.UpdateAsync(review);
+
+        // Assert
+        var updated = await _repository.GetByIdAsync(review.Id);
+        Assert.That(updated, Is.Not.Null);
+        Assert.That(updated!.StarRating, Is.EqualTo(5));
+        Assert.That(updated.ReviewBody, Does.Contain("Updated review content"));
+        Assert.That(updated.PhotoUrls, Is.Not.Null);
+        Assert.That(updated.PhotoUrls!.Length, Is.EqualTo(1));
+        Assert.That(updated.ReviewAsAnon, Is.True);
     }
 }

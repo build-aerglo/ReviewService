@@ -82,6 +82,7 @@ public class ReviewRepository : IReviewRepository
             SET star_rating = @StarRating,
                 review_body = @ReviewBody,
                 photo_urls = @PhotoUrls,
+                review_as_anon = @ReviewAsAnon,
                 updated_at = @UpdatedAt
             WHERE id = @Id;";
 

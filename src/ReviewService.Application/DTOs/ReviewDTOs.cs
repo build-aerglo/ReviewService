@@ -27,5 +27,6 @@ public record ReviewResponseDto(
 public record UpdateReviewDto(
     int? StarRating,
     string? ReviewBody,
-    string[]? PhotoUrls
+    string[]? PhotoUrls,
+    bool? ReviewAsAnon
 );
