@@ -618,4 +618,91 @@ public class ReviewControllerTests
         Assert.That(badRequestResult, Is.Not.Null);
         Assert.That(badRequestResult!.StatusCode, Is.EqualTo(400));
     }
+    
+    // ======================================
+        // DELETE REVIEW CONTROLLER TESTS
+        // ======================================
+    
+        [Test]
+        public async Task DeleteReview_ShouldReturnNoContent_WhenSuccessful()
+        {
+            // ARRANGE
+            var reviewId = Guid.NewGuid();
+            var reviewerId = Guid.NewGuid();
+    
+            _mockReviewService
+                .Setup(s => s.DeleteReviewAsync(reviewId, reviewerId, null))
+                .Returns(Task.CompletedTask);
+    
+            // ACT
+            var result = await _controller.DeleteReview(reviewId, reviewerId, null);
+    
+            // ASSERT
+            var noContentResult = result as NoContentResult;
+            Assert.That(noContentResult, Is.Not.Null);
+            Assert.That(noContentResult!.StatusCode, Is.EqualTo(204));
+    
+            _mockReviewService.Verify(s => s.DeleteReviewAsync(reviewId, reviewerId, null), Times.Once);
+        }
+    
+        [Test]
+        public async Task DeleteReview_ShouldReturnBadRequest_WhenNoAuthorizationProvided()
+        {
+            // ARRANGE
+            var reviewId = Guid.NewGuid();
+    
+            // ACT
+            var result = await _controller.DeleteReview(reviewId, null, null);
+    
+            // ASSERT
+            var badRequestResult = result as BadRequestObjectResult;
+            Assert.That(badRequestResult, Is.Not.Null);
+            Assert.That(badRequestResult!.StatusCode, Is.EqualTo(400));
+            Assert.That(badRequestResult.Value?.ToString(), Does.Contain("Either reviewerId or email must be provided"));
+    
+            _mockReviewService.Verify(s => s.DeleteReviewAsync(
+                It.IsAny<Guid>(), It.IsAny<Guid?>(), It.IsAny<string?>()), Times.Never);
+        }
+    
+        [Test]
+        public async Task DeleteReview_ShouldReturnNotFound_WhenReviewDoesNotExist()
+        {
+            // ARRANGE
+            var reviewId = Guid.NewGuid();
+            var reviewerId = Guid.NewGuid();
+    
+            _mockReviewService
+                .Setup(s => s.DeleteReviewAsync(reviewId, reviewerId, null))
+                .ThrowsAsync(new ReviewNotFoundException(reviewId));
+    
+            // ACT
+            var result = await _controller.DeleteReview(reviewId, reviewerId, null);
+    
+            // ASSERT
+            var notFoundResult = result as NotFoundObjectResult;
+            Assert.That(notFoundResult, Is.Not.Null);
+            Assert.That(notFoundResult!.StatusCode, Is.EqualTo(404));
+            Assert.That(notFoundResult.Value?.ToString(), Does.Contain(reviewId.ToString()));
+        }
+    
+        [Test]
+        public async Task DeleteReview_ShouldReturnForbidden_WhenUnauthorized()
+        {
+            // ARRANGE
+            var reviewId = Guid.NewGuid();
+            var reviewerId = Guid.NewGuid();
+    
+            _mockReviewService
+                .Setup(s => s.DeleteReviewAsync(reviewId, reviewerId, null))
+                .ThrowsAsync(new UnauthorizedReviewAccessException(reviewId));
+    
+            // ACT
+            var result = await _controller.DeleteReview(reviewId, reviewerId, null);
+    
+            // ASSERT
+            var forbiddenResult = result as ObjectResult;
+            Assert.That(forbiddenResult, Is.Not.Null);
+            Assert.That(forbiddenResult!.StatusCode, Is.EqualTo(403));
+            Assert.That(forbiddenResult.Value?.ToString(), Does.Contain("Unauthorized"));
+        }
 }
