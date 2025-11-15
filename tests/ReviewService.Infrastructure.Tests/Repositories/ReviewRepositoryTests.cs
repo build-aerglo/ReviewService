@@ -244,4 +244,34 @@ public class ReviewRepositoryTests
         Assert.That(updated.PhotoUrls!.Length, Is.EqualTo(1));
         Assert.That(updated.ReviewAsAnon, Is.True);
     }
+    
+    [Test]
+    public async Task DeleteAsync_ShouldRemoveReview_WhenReviewExists()
+    {
+        // Arrange
+        var businessId = await InsertDummyBusinessAsync();
+        var review = new Review(
+            businessId: businessId,
+            locationId: null,
+            reviewerId: null,
+            email: "delete@example.com",
+            starRating: 4,
+            reviewBody: "Review that will be deleted permanently from database.",
+            photoUrls: null,
+            reviewAsAnon: false
+        );
+
+        await _repository.AddAsync(review);
+
+        // Verify it exists
+        var exists = await _repository.GetByIdAsync(review.Id);
+        Assert.That(exists, Is.Not.Null);
+
+        // Act
+        await _repository.DeleteAsync(review.Id);
+
+        // Assert
+        var deleted = await _repository.GetByIdAsync(review.Id);
+        Assert.That(deleted, Is.Null);
+    }
 }

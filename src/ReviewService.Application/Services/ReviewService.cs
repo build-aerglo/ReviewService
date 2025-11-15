@@ -140,4 +140,32 @@ public class ReviewService(
             CreatedAt: updatedReview.CreatedAt
         );
     }
+    
+    public async Task DeleteReviewAsync(Guid id, Guid? reviewerId, string? email)
+    {
+        // 1. Get existing review
+        var review = await reviewRepository.GetByIdAsync(id);
+        if (review is null)
+            throw new ReviewNotFoundException(id);
+
+        // 2. Authorization check - user can only delete their own reviews
+        var isAuthorized = false;
+
+        if (reviewerId.HasValue && review.ReviewerId.HasValue)
+        {
+            // Registered user trying to delete their own review
+            isAuthorized = review.ReviewerId.Value == reviewerId.Value;
+        }
+        else if (!string.IsNullOrWhiteSpace(email) && !string.IsNullOrWhiteSpace(review.Email))
+        {
+            // Guest user trying to delete their own review
+            isAuthorized = review.Email.Equals(email, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (!isAuthorized)
+            throw new UnauthorizedReviewAccessException(id);
+
+        // 3. Delete the review
+        await reviewRepository.DeleteAsync(id);
+    }
 }

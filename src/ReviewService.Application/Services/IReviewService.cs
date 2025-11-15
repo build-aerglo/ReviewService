@@ -8,4 +8,5 @@ public interface IReviewService
     Task<ReviewResponseDto?> GetReviewByIdAsync(Guid id);
     Task<IEnumerable<ReviewResponseDto>> GetReviewsByBusinessIdAsync(Guid businessId);
     Task<ReviewResponseDto> UpdateReviewAsync(Guid id, UpdateReviewDto dto, Guid? reviewerId, string? email);
+    Task DeleteReviewAsync(Guid id, Guid? reviewerId, string? email);
 }

@@ -137,4 +137,39 @@ public class ReviewController(IReviewService service, ILogger<ReviewController> 
             return StatusCode(500, new { error = "Internal server error occurred." });
         }
     }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> DeleteReview(
+        Guid id,
+        [FromQuery] Guid? reviewerId,
+        [FromQuery] string? email)
+    {
+        // Validate that either reviewerId or email is provided
+        if (!reviewerId.HasValue && string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest(new { error = "Either reviewerId or email must be provided for authorization." });
+        }
+
+        try
+        {
+            await service.DeleteReviewAsync(id, reviewerId, email);
+            return NoContent();
+        }
+        catch (ReviewNotFoundException ex)
+        {
+            logger.LogWarning(ex, "Review not found: {ReviewId}", id);
+            return NotFound(new { error = ex.Message });
+        }
+        catch (UnauthorizedReviewAccessException ex)
+        {
+            logger.LogWarning(ex, "Unauthorized delete attempt for review: {ReviewId}", id);
+            return StatusCode(403, new { error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error deleting review {ReviewId}", id);
+            return StatusCode(500, new { error = "Internal server error occurred." });
+        }
+    }
+
 }

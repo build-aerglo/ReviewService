@@ -482,4 +482,113 @@ public class ReviewServiceTests
 
         Assert.That(ex!.Message, Does.Contain("Star rating must be between 1 and 5"));
     }
+    
+    
+    // ======================================
+    // DELETE REVIEW TESTS
+    // ======================================
+
+    [Test]
+    public async Task DeleteReview_ShouldSucceed_WhenRegisteredUserOwnsReview()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var businessId = Guid.NewGuid();
+        var reviewerId = Guid.NewGuid();
+
+        var existingReview = new Review(businessId, null, reviewerId, null, 4,
+            "Review to be deleted by registered user.", null, false);
+
+        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
+        _mockReviewRepository.Setup(r => r.DeleteAsync(reviewId)).Returns(Task.CompletedTask);
+
+        // ACT
+        await _service.DeleteReviewAsync(reviewId, reviewerId, null);
+
+        // ASSERT
+        _mockReviewRepository.Verify(r => r.DeleteAsync(reviewId), Times.Once);
+    }
+
+    [Test]
+    public async Task DeleteReview_ShouldSucceed_WhenGuestUserOwnsReview()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var businessId = Guid.NewGuid();
+        var email = "guest@example.com";
+
+        var existingReview = new Review(businessId, null, null, email, 3,
+            "Review to be deleted by guest user.", null, true);
+
+        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
+        _mockReviewRepository.Setup(r => r.DeleteAsync(reviewId)).Returns(Task.CompletedTask);
+
+        // ACT
+        await _service.DeleteReviewAsync(reviewId, null, email);
+
+        // ASSERT
+        _mockReviewRepository.Verify(r => r.DeleteAsync(reviewId), Times.Once);
+    }
+
+    [Test]
+    public void DeleteReview_ShouldThrow_WhenReviewNotFound()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync((Review?)null);
+
+        // ACT & ASSERT
+        var ex = Assert.ThrowsAsync<ReviewNotFoundException>(
+            async () => await _service.DeleteReviewAsync(reviewId, Guid.NewGuid(), null)
+        );
+
+        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
+        _mockReviewRepository.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Test]
+    public void DeleteReview_ShouldThrow_WhenUnauthorized_DifferentReviewerId()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var businessId = Guid.NewGuid();
+        var originalReviewerId = Guid.NewGuid();
+        var differentReviewerId = Guid.NewGuid();
+
+        var existingReview = new Review(businessId, null, originalReviewerId, null, 4,
+            "Review owned by someone else.", null, false);
+
+        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
+
+        // ACT & ASSERT
+        var ex = Assert.ThrowsAsync<UnauthorizedReviewAccessException>(
+            async () => await _service.DeleteReviewAsync(reviewId, differentReviewerId, null)
+        );
+
+        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
+        _mockReviewRepository.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
+    }
+
+    [Test]
+    public void DeleteReview_ShouldThrow_WhenUnauthorized_DifferentEmail()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var businessId = Guid.NewGuid();
+        var originalEmail = "original@example.com";
+        var differentEmail = "hacker@example.com";
+
+        var existingReview = new Review(businessId, null, null, originalEmail, 4,
+            "Review owned by someone else.", null, true);
+
+        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
+
+        // ACT & ASSERT
+        var ex = Assert.ThrowsAsync<UnauthorizedReviewAccessException>(
+            async () => await _service.DeleteReviewAsync(reviewId, null, differentEmail)
+        );
+
+        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
+        _mockReviewRepository.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
+    }
 }
