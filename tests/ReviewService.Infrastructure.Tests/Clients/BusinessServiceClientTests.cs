@@ -41,7 +41,7 @@ public class BusinessServiceClientTests
         // ARRANGE
         var businessId = Guid.NewGuid();
         _mockHandler
-            .SetupRequest(HttpMethod.Get, $"/api/businesses/{businessId}")
+            .SetupRequest(HttpMethod.Get, $"/api/Business/{businessId}")
             .ReturnsResponse(HttpStatusCode.OK);
 
         // ACT
@@ -58,7 +58,7 @@ public class BusinessServiceClientTests
         // ARRANGE
         var businessId = Guid.NewGuid();
         _mockHandler
-            .SetupRequest(HttpMethod.Get, $"/api/businesses/{businessId}")
+            .SetupRequest(HttpMethod.Get, $"/api/Business/{businessId}")
             .ReturnsResponse(HttpStatusCode.NotFound);
 
         // ACT
@@ -75,7 +75,7 @@ public class BusinessServiceClientTests
         // ARRANGE
         var businessId = Guid.NewGuid();
         _mockHandler
-            .SetupRequest(HttpMethod.Get, $"/api/businesses/{businessId}")
+            .SetupRequest(HttpMethod.Get, $"/api/Business/{businessId}")
             .ReturnsResponse(HttpStatusCode.InternalServerError);
 
         // ACT
@@ -92,7 +92,7 @@ public class BusinessServiceClientTests
         // ARRANGE
         var businessId = Guid.NewGuid();
         _mockHandler
-            .SetupRequest(HttpMethod.Get, $"/api/businesses/{businessId}")
+            .SetupRequest(HttpMethod.Get, $"/api/Business/{businessId}")
             .Throws<HttpRequestException>();
 
         // ACT

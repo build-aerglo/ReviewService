@@ -14,6 +14,15 @@ public class Review
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
 
+    // ✅ NEW: Validation fields
+    public string Status { get; private set; } = "PENDING";
+    public string? IpAddress { get; private set; }
+    public string? DeviceId { get; private set; }
+    public string? Geolocation { get; private set; }
+    public string? UserAgent { get; private set; }
+    public string? ValidationResult { get; private set; }
+    public DateTime? ValidatedAt { get; private set; }
+
     // 🟢 Parameterless constructor for Dapper
     protected Review() { }
 
@@ -26,7 +35,11 @@ public class Review
         int starRating,
         string reviewBody,
         string[]? photoUrls,
-        bool reviewAsAnon)
+        bool reviewAsAnon,
+        string? ipAddress = null,
+        string? deviceId = null,
+        string? geolocation = null,
+        string? userAgent = null)
     {
         // Validations
         if (starRating < 1 || starRating > 5)
@@ -53,6 +66,13 @@ public class Review
         ReviewAsAnon = reviewAsAnon;
         CreatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
+
+        // ✅ NEW: Set metadata
+        Status = "PENDING"; // All reviews start as PENDING
+        IpAddress = ipAddress;
+        DeviceId = deviceId;
+        Geolocation = geolocation;
+        UserAgent = userAgent;
     }
 
     public void Update(int? starRating, string? reviewBody, string[]? photoUrls, bool? reviewAsAnon)
@@ -83,6 +103,22 @@ public class Review
             ReviewAsAnon = reviewAsAnon.Value;
         }
 
+        UpdatedAt = DateTime.UtcNow;
+    }
+
+    // ✅ NEW: Update validation status after background validation completes
+    public void UpdateValidationStatus(string status, string validationResult)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+            throw new ArgumentException("Status cannot be null or empty.", nameof(status));
+
+        var validStatuses = new[] { "PENDING", "APPROVED", "REJECTED", "FLAGGED" };
+        if (!validStatuses.Contains(status))
+            throw new ArgumentException($"Invalid status. Must be one of: {string.Join(", ", validStatuses)}", nameof(status));
+
+        Status = status;
+        ValidationResult = validationResult;
+        ValidatedAt = DateTime.UtcNow;
         UpdatedAt = DateTime.UtcNow;
     }
 }

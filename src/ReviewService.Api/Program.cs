@@ -5,24 +5,23 @@ using ReviewService.Domain.Repositories;
 using ReviewService.Infrastructure.Clients;
 using ReviewService.Infrastructure.Repositories;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddDapr(); //Enable Dapr integration
 
+//Add Dapr client
+builder.Services.AddDaprClient();
 
-
-
-
-
-
-//Register Dapper Repos and Application Services
+// Register Dapper Repos and Application Services
 builder.Services.AddScoped<IReviewRepository, ReviewRepository>();
 builder.Services.AddScoped<IReviewService, ReviewService.Application.Services.ReviewService>();
 
-//Register HttpClient for User,Business and Location Services
+//NEW: Register validation service
+builder.Services.AddScoped<IReviewValidationService, ReviewValidationService>();
+
+// Register HttpClient for Business Service
 builder.Services.AddHttpClient<IBusinessServiceClient, BusinessServiceClient>(client =>
 {
     var baseUrl = builder.Configuration["Services:BusinessServiceBaseUrl"];
@@ -32,10 +31,9 @@ builder.Services.AddHttpClient<IBusinessServiceClient, BusinessServiceClient>(cl
     client.BaseAddress = new Uri(baseUrl);
     client.Timeout = TimeSpan.FromSeconds(10);
     client.DefaultRequestHeaders.Add("Accept", "application/json");
-
 });
 
-
+// Register HttpClient for User Service
 builder.Services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
 {
     var baseUrl = builder.Configuration["Services:UserServiceBaseUrl"];
@@ -47,6 +45,29 @@ builder.Services.AddHttpClient<IUserServiceClient, UserServiceClient>(client =>
     client.DefaultRequestHeaders.Add("Accept", "application/json");
 });
 
+//NEW: Register HttpClient for Compliance Service
+builder.Services.AddHttpClient<IComplianceServiceClient, ComplianceServiceClient>(client =>
+{
+    var baseUrl = builder.Configuration["Services:ComplianceServiceBaseUrl"];
+    if (string.IsNullOrWhiteSpace(baseUrl))
+        throw new InvalidOperationException("Missing configuration: Services:ComplianceServiceBaseUrl");
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(30); // Longer timeout for validation
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
+
+//NEW: Register HttpClient for Notification Service
+builder.Services.AddHttpClient<INotificationServiceClient, NotificationServiceClient>(client =>
+{
+    var baseUrl = builder.Configuration["Services:NotificationServiceBaseUrl"];
+    if (string.IsNullOrWhiteSpace(baseUrl))
+        throw new InvalidOperationException("Missing configuration: Services:NotificationServiceBaseUrl");
+
+    client.BaseAddress = new Uri(baseUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -59,31 +80,26 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-
-
-
 var app = builder.Build();
 
-
-// ✅ Dapper naming convention fix
+//Dapper naming convention fix
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 
 // 🔒 HTTPS
 app.UseHttpsRedirection();
 
-
+//Enable Dapr pub/sub
+app.UseCloudEvents(); // Required for Dapr pub/sub
+app.MapSubscribeHandler(); // Automatically discover [Topic] attributes
 
 // 1️⃣ Swagger setup
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "User Service API v1");
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Review Service API v1");
     options.RoutePrefix = ""; // load Swagger at root
 });
 
-
 app.MapControllers();
-
-
 
 app.Run();

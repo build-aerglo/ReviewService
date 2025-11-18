@@ -11,7 +11,7 @@ public class BusinessServiceClient(HttpClient httpClient, ILogger<BusinessServic
     {
         try
         {
-            var response = await httpClient.GetAsync($"/api/businesses/{businessId}");
+            var response = await httpClient.GetAsync($"/api/Business/{businessId}");
 
             if (response.StatusCode == HttpStatusCode.OK)
             {

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using ReviewService.Application.DTOs;
 using ReviewService.Application.Interfaces;
 using ReviewService.Domain.Entities;
@@ -6,20 +7,35 @@ using ReviewService.Domain.Repositories;
 
 namespace ReviewService.Application.Services;
 
-public class ReviewService(
-    IReviewRepository reviewRepository,
-    IBusinessServiceClient businessServiceClient,
-    IUserServiceClient userServiceClient
-) : IReviewService
+public class ReviewService : IReviewService
 {
-    public async Task<ReviewResponseDto> CreateReviewAsync(CreateReviewDto dto)
+    private readonly IReviewRepository _reviewRepository;
+    private readonly IBusinessServiceClient _businessServiceClient;
+    private readonly IUserServiceClient _userServiceClient;
+
+    public ReviewService(
+        IReviewRepository reviewRepository,
+        IBusinessServiceClient businessServiceClient,
+        IUserServiceClient userServiceClient)
+    {
+        _reviewRepository = reviewRepository;
+        _businessServiceClient = businessServiceClient;
+        _userServiceClient = userServiceClient;
+    }
+
+    public async Task<ReviewResponseDto> CreateReviewAsync(
+        CreateReviewDto dto,
+        string? ipAddress = null,
+        string? deviceId = null,
+        string? geolocation = null,
+        string? userAgent = null)
     {
         // ✅ 1. Validate business exists via BusinessService API
-        var businessExists = await businessServiceClient.BusinessExistsAsync(dto.BusinessId);
+        var businessExists = await _businessServiceClient.BusinessExistsAsync(dto.BusinessId);
         if (!businessExists)
             throw new BusinessNotFoundException(dto.BusinessId);
 
-        //  Create the review entity
+        // ✅ 2. Create the review entity with metadata
         var review = new Review(
             businessId: dto.BusinessId,
             locationId: dto.LocationId,
@@ -28,18 +44,22 @@ public class ReviewService(
             starRating: dto.StarRating,
             reviewBody: dto.ReviewBody,
             photoUrls: dto.PhotoUrls,
-            reviewAsAnon: dto.ReviewAsAnon
+            reviewAsAnon: dto.ReviewAsAnon,
+            ipAddress: ipAddress,
+            deviceId: deviceId,
+            geolocation: geolocation,
+            userAgent: userAgent
         );
 
-        // Save review
-        await reviewRepository.AddAsync(review);
+        // ✅ 3. Save review with PENDING status
+        await _reviewRepository.AddAsync(review);
 
-        // Confirm save
-        var savedReview = await reviewRepository.GetByIdAsync(review.Id);
+        // ✅ 4. Confirm save
+        var savedReview = await _reviewRepository.GetByIdAsync(review.Id);
         if (savedReview is null)
             throw new ReviewCreationFailedException("Failed to create review record.");
 
-        //  Map to response DTO
+        // ✅ 5. Map to response DTO
         return new ReviewResponseDto(
             Id: savedReview.Id,
             BusinessId: savedReview.BusinessId,
@@ -50,13 +70,15 @@ public class ReviewService(
             ReviewBody: savedReview.ReviewBody,
             PhotoUrls: savedReview.PhotoUrls,
             ReviewAsAnon: savedReview.ReviewAsAnon,
-            CreatedAt: savedReview.CreatedAt
+            CreatedAt: savedReview.CreatedAt,
+            Status: savedReview.Status,
+            ValidatedAt: savedReview.ValidatedAt
         );
     }
 
     public async Task<ReviewResponseDto?> GetReviewByIdAsync(Guid id)
     {
-        var review = await reviewRepository.GetByIdAsync(id);
+        var review = await _reviewRepository.GetByIdAsync(id);
         if (review is null)
             return null;
 
@@ -70,13 +92,16 @@ public class ReviewService(
             ReviewBody: review.ReviewBody,
             PhotoUrls: review.PhotoUrls,
             ReviewAsAnon: review.ReviewAsAnon,
-            CreatedAt: review.CreatedAt
+            CreatedAt: review.CreatedAt,
+            Status: review.Status,
+            ValidatedAt: review.ValidatedAt
         );
     }
 
     public async Task<IEnumerable<ReviewResponseDto>> GetReviewsByBusinessIdAsync(Guid businessId)
     {
-        var reviews = await reviewRepository.GetByBusinessIdAsync(businessId);
+        // ✅ Only return APPROVED reviews to public
+        var reviews = await _reviewRepository.GetByBusinessIdAsync(businessId, ReviewStatus.Approved);
         
         return reviews.Select(r => new ReviewResponseDto(
             Id: r.Id,
@@ -88,14 +113,51 @@ public class ReviewService(
             ReviewBody: r.ReviewBody,
             PhotoUrls: r.PhotoUrls,
             ReviewAsAnon: r.ReviewAsAnon,
-            CreatedAt: r.CreatedAt
+            CreatedAt: r.CreatedAt,
+            Status: r.Status,
+            ValidatedAt: r.ValidatedAt
         ));
+    }
+
+    /// <summary>
+    /// ✅ NEW: Get review status for user to check validation progress
+    /// </summary>
+    public async Task<ReviewStatusDto?> GetReviewStatusAsync(Guid reviewId, string email)
+    {
+        var review = await _reviewRepository.GetByIdAsync(reviewId);
+        
+        if (review == null)
+            return null;
+
+        // Verify email matches (security check)
+        if (!string.Equals(review.Email, email, StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        ValidationResult? validationResult = null;
+        if (!string.IsNullOrWhiteSpace(review.ValidationResult))
+        {
+            try
+            {
+                validationResult = JsonSerializer.Deserialize<ValidationResult>(review.ValidationResult);
+            }
+            catch
+            {
+                // If deserialization fails, just return null
+            }
+        }
+
+        return new ReviewStatusDto(
+            ReviewId: review.Id,
+            Status: review.Status,
+            ValidatedAt: review.ValidatedAt,
+            ValidationResult: validationResult
+        );
     }
 
     public async Task<ReviewResponseDto> UpdateReviewAsync(Guid id, UpdateReviewDto dto, Guid? reviewerId, string? email)
     {
         // 1. Get existing review
-        var review = await reviewRepository.GetByIdAsync(id);
+        var review = await _reviewRepository.GetByIdAsync(id);
         if (review is null)
             throw new ReviewNotFoundException(id);
 
@@ -104,12 +166,10 @@ public class ReviewService(
 
         if (reviewerId.HasValue && review.ReviewerId.HasValue)
         {
-            // Registered user trying to edit their own review
             isAuthorized = review.ReviewerId.Value == reviewerId.Value;
         }
         else if (!string.IsNullOrWhiteSpace(email) && !string.IsNullOrWhiteSpace(review.Email))
         {
-            // Guest user trying to edit their own review
             isAuthorized = review.Email.Equals(email, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -120,10 +180,10 @@ public class ReviewService(
         review.Update(dto.StarRating, dto.ReviewBody, dto.PhotoUrls, dto.ReviewAsAnon);
 
         // 4. Save changes
-        await reviewRepository.UpdateAsync(review);
+        await _reviewRepository.UpdateAsync(review);
 
         // 5. Fetch and return updated review
-        var updatedReview = await reviewRepository.GetByIdAsync(id);
+        var updatedReview = await _reviewRepository.GetByIdAsync(id);
         if (updatedReview is null)
             throw new ReviewCreationFailedException("Failed to update review record.");
 
@@ -137,14 +197,16 @@ public class ReviewService(
             ReviewBody: updatedReview.ReviewBody,
             PhotoUrls: updatedReview.PhotoUrls,
             ReviewAsAnon: updatedReview.ReviewAsAnon,
-            CreatedAt: updatedReview.CreatedAt
+            CreatedAt: updatedReview.CreatedAt,
+            Status: updatedReview.Status,
+            ValidatedAt: updatedReview.ValidatedAt
         );
     }
     
     public async Task DeleteReviewAsync(Guid id, Guid? reviewerId, string? email)
     {
         // 1. Get existing review
-        var review = await reviewRepository.GetByIdAsync(id);
+        var review = await _reviewRepository.GetByIdAsync(id);
         if (review is null)
             throw new ReviewNotFoundException(id);
 
@@ -153,12 +215,10 @@ public class ReviewService(
 
         if (reviewerId.HasValue && review.ReviewerId.HasValue)
         {
-            // Registered user trying to delete their own review
             isAuthorized = review.ReviewerId.Value == reviewerId.Value;
         }
         else if (!string.IsNullOrWhiteSpace(email) && !string.IsNullOrWhiteSpace(review.Email))
         {
-            // Guest user trying to delete their own review
             isAuthorized = review.Email.Equals(email, StringComparison.OrdinalIgnoreCase);
         }
 
@@ -166,6 +226,6 @@ public class ReviewService(
             throw new UnauthorizedReviewAccessException(id);
 
         // 3. Delete the review
-        await reviewRepository.DeleteAsync(id);
+        await _reviewRepository.DeleteAsync(id);
     }
 }
