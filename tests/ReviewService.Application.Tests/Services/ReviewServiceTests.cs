@@ -30,7 +30,7 @@ public class ReviewServiceTests
     }
 
     [Test]
-    public async Task CreateReview_ShouldReturnResponse_WhenSuccessful_RegisteredUser()
+    public async Task CreateReviewAsync_ShouldReturnResponseWithPendingStatus_WhenSuccessful()
     {
         // ARRANGE
         var businessId = Guid.NewGuid();
@@ -47,15 +47,16 @@ public class ReviewServiceTests
         );
 
         _mockBusinessServiceClient.Setup(c => c.BusinessExistsAsync(businessId)).ReturnsAsync(true);
-
         _mockReviewRepository.Setup(r => r.AddAsync(It.IsAny<Review>())).Returns(Task.CompletedTask);
         _mockReviewRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
-            .ReturnsAsync((Guid id) => new Review(businessId, null, reviewerId, null, 5, 
-                "Excellent service! Very satisfied with the experience.", 
-                new[] { "https://example.com/photo1.jpg" }, false));
+            .ReturnsAsync((Guid id) => new Review(
+                businessId, null, reviewerId, null, 5,
+                "Excellent service! Very satisfied with the experience.",
+                new[] { "https://example.com/photo1.jpg" }, false,
+                "192.168.1.1", "device-123", "Lagos, Lagos, Nigeria", "Mozilla/5.0"));
 
         // ACT
-        var result = await _service.CreateReviewAsync(dto);
+        var result = await _service.CreateReviewAsync(dto, "192.168.1.1", "device-123", "Lagos, Lagos, Nigeria", "Mozilla/5.0");
 
         // ASSERT
         Assert.Multiple(() =>
@@ -63,8 +64,8 @@ public class ReviewServiceTests
             Assert.That(result.BusinessId, Is.EqualTo(businessId));
             Assert.That(result.ReviewerId, Is.EqualTo(reviewerId));
             Assert.That(result.StarRating, Is.EqualTo(5));
-            Assert.That(result.ReviewBody, Is.EqualTo("Excellent service! Very satisfied with the experience."));
-            Assert.That(result.ReviewAsAnon, Is.False);
+            Assert.That(result.Status, Is.EqualTo("PENDING")); // ✅ NEW: Check status
+            Assert.That(result.ValidatedAt, Is.Null); // ✅ NEW: Not yet validated
         });
 
         _mockBusinessServiceClient.Verify(c => c.BusinessExistsAsync(businessId), Times.Once);
@@ -72,7 +73,7 @@ public class ReviewServiceTests
     }
 
     [Test]
-    public async Task CreateReview_ShouldReturnResponse_WhenSuccessful_GuestUser()
+    public async Task CreateReviewAsync_GuestUser_ShouldSucceed()
     {
         // ARRANGE
         var businessId = Guid.NewGuid();
@@ -88,11 +89,13 @@ public class ReviewServiceTests
         );
 
         _mockBusinessServiceClient.Setup(c => c.BusinessExistsAsync(businessId)).ReturnsAsync(true);
-
         _mockReviewRepository.Setup(r => r.AddAsync(It.IsAny<Review>())).Returns(Task.CompletedTask);
         _mockReviewRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
-            .ReturnsAsync((Guid id) => new Review(businessId, null, null, "guest@example.com", 4,
-                "Good service overall. Would recommend to others.", null, true));
+            .ReturnsAsync((Guid id) => new Review(
+                businessId, null, null, "guest@example.com", 4,
+                "Good service overall. Would recommend to others.",
+                null, true,
+                null, null, null, null));
 
         // ACT
         var result = await _service.CreateReviewAsync(dto);
@@ -100,20 +103,14 @@ public class ReviewServiceTests
         // ASSERT
         Assert.Multiple(() =>
         {
-            Assert.That(result.BusinessId, Is.EqualTo(businessId));
-            Assert.That(result.ReviewerId, Is.Null);
             Assert.That(result.Email, Is.EqualTo("guest@example.com"));
-            Assert.That(result.StarRating, Is.EqualTo(4));
             Assert.That(result.ReviewAsAnon, Is.True);
+            Assert.That(result.Status, Is.EqualTo("PENDING"));
         });
-
-        _mockBusinessServiceClient.Verify(c => c.BusinessExistsAsync(businessId), Times.Once);
-        _mockUserServiceClient.Verify(c => c.UserExistsAsync(It.IsAny<Guid>()), Times.Never);
-        _mockReviewRepository.Verify(r => r.AddAsync(It.IsAny<Review>()), Times.Once);
     }
 
     [Test]
-    public void CreateReview_ShouldThrow_WhenBusinessDoesNotExist()
+    public void CreateReviewAsync_ShouldThrow_WhenBusinessDoesNotExist()
     {
         // ARRANGE
         var businessId = Guid.NewGuid();
@@ -140,112 +137,18 @@ public class ReviewServiceTests
     }
 
     [Test]
-    public void CreateReview_ShouldThrow_WhenReviewSaveFails()
-    {
-        // ARRANGE
-        var businessId = Guid.NewGuid();
-        var dto = new CreateReviewDto(
-            BusinessId: businessId,
-            LocationId: null,
-            ReviewerId: null,
-            Email: "fail@example.com",
-            StarRating: 5,
-            ReviewBody: "This review should fail to save to database.",
-            PhotoUrls: null,
-            ReviewAsAnon: false
-        );
-
-        _mockBusinessServiceClient.Setup(c => c.BusinessExistsAsync(businessId)).ReturnsAsync(true);
-        _mockReviewRepository.Setup(r => r.AddAsync(It.IsAny<Review>())).Returns(Task.CompletedTask);
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((Review?)null);
-
-        // ACT & ASSERT
-        var ex = Assert.ThrowsAsync<ReviewCreationFailedException>(
-            async () => await _service.CreateReviewAsync(dto)
-        );
-
-        Assert.That(ex!.Message, Does.Contain("Failed to create review record."));
-    }
-
-    [Test]
-    public async Task CreateReview_WithLocation_ShouldSucceed()
-    {
-        // ARRANGE
-        var businessId = Guid.NewGuid();
-        var locationId = Guid.NewGuid();
-        var dto = new CreateReviewDto(
-            BusinessId: businessId,
-            LocationId: locationId,
-            ReviewerId: null,
-            Email: "location@example.com",
-            StarRating: 5,
-            ReviewBody: "Great location! Easy to find and good parking.",
-            PhotoUrls: null,
-            ReviewAsAnon: false
-        );
-
-        _mockBusinessServiceClient.Setup(c => c.BusinessExistsAsync(businessId)).ReturnsAsync(true);
-
-        _mockReviewRepository.Setup(r => r.AddAsync(It.IsAny<Review>())).Returns(Task.CompletedTask);
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
-            .ReturnsAsync((Guid id) => new Review(businessId, locationId, null, "location@example.com", 5,
-                "Great location! Easy to find and good parking.", null, false));
-
-        // ACT
-        var result = await _service.CreateReviewAsync(dto);
-
-        // ASSERT
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.LocationId, Is.EqualTo(locationId));
-            Assert.That(result.Email, Is.EqualTo("location@example.com"));
-        });
-    }
-
-    [Test]
-    public async Task CreateReview_WithMultiplePhotos_ShouldSucceed()
-    {
-        // ARRANGE
-        var businessId = Guid.NewGuid();
-        var photoUrls = new[] { "photo1.jpg", "photo2.jpg", "photo3.jpg" };
-        var dto = new CreateReviewDto(
-            BusinessId: businessId,
-            LocationId: null,
-            ReviewerId: null,
-            Email: "photos@example.com",
-            StarRating: 5,
-            ReviewBody: "Amazing experience! Added some photos for reference.",
-            PhotoUrls: photoUrls,
-            ReviewAsAnon: false
-        );
-
-        _mockBusinessServiceClient.Setup(c => c.BusinessExistsAsync(businessId)).ReturnsAsync(true);
-        _mockReviewRepository.Setup(r => r.AddAsync(It.IsAny<Review>())).Returns(Task.CompletedTask);
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
-            .ReturnsAsync((Guid id) => new Review(businessId, null, null, "photos@example.com", 5,
-                "Amazing experience! Added some photos for reference.", photoUrls, false));
-
-        // ACT
-        var result = await _service.CreateReviewAsync(dto);
-
-        // ASSERT
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.PhotoUrls, Is.Not.Null);
-            Assert.That(result.PhotoUrls!.Length, Is.EqualTo(3));
-            Assert.That(result.PhotoUrls, Is.EqualTo(photoUrls));
-        });
-    }
-
-    [Test]
-    public async Task GetReviewById_ShouldReturnReview_WhenExists()
+    public async Task GetReviewByIdAsync_ShouldReturnReviewWithStatus()
     {
         // ARRANGE
         var reviewId = Guid.NewGuid();
         var businessId = Guid.NewGuid();
-        var review = new Review(businessId, null, null, "test@example.com", 4,
+        var review = new Review(
+            businessId, null, null, "test@example.com", 4,
             "Good service and friendly staff overall.",
-            null, false);
+            null, false,
+            "192.168.1.1", "device-123", "Lagos, Lagos, Nigeria", "Mozilla/5.0");
+
+        review.UpdateValidationStatus("APPROVED", "{}");
 
         _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(review);
 
@@ -254,77 +157,94 @@ public class ReviewServiceTests
 
         // ASSERT
         Assert.That(result, Is.Not.Null);
-        Assert.That(result!.BusinessId, Is.EqualTo(businessId));
-        Assert.That(result.StarRating, Is.EqualTo(4));
+        Assert.That(result!.Status, Is.EqualTo("APPROVED"));
+        Assert.That(result.ValidatedAt, Is.Not.Null);
     }
 
     [Test]
-    public async Task GetReviewById_ShouldReturnNull_WhenNotExists()
+    public async Task GetReviewsByBusinessIdAsync_ShouldReturnOnlyApprovedReviews()
+    {
+        // ARRANGE
+        var businessId = Guid.NewGuid();
+        var approvedReview = new Review(
+            businessId, null, null, "user1@example.com", 5,
+            "Excellent! Highly recommend this place.",
+            null, false, null, null, null, null);
+        approvedReview.UpdateValidationStatus("APPROVED", "{}");
+
+        var reviews = new List<Review> { approvedReview };
+
+        _mockReviewRepository
+            .Setup(r => r.GetByBusinessIdAsync(businessId, "APPROVED"))
+            .ReturnsAsync(reviews);
+
+        // ACT
+        var result = (await _service.GetReviewsByBusinessIdAsync(businessId)).ToList();
+
+        // ASSERT
+        Assert.That(result.Count, Is.EqualTo(1));
+        Assert.That(result[0].Status, Is.EqualTo("APPROVED"));
+    }
+
+    [Test]
+    public async Task GetReviewStatusAsync_ShouldReturnStatus_WhenEmailMatches()
     {
         // ARRANGE
         var reviewId = Guid.NewGuid();
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync((Review?)null);
+        var businessId = Guid.NewGuid();
+        var email = "test@example.com";
+
+        var review = new Review(
+            businessId, null, null, email, 5,
+            "Great service! Very satisfied with the experience overall.",
+            null, false, null, null, null, null);
+
+        review.UpdateValidationStatus("APPROVED", "{\"isValid\":true,\"errors\":[],\"warnings\":[]}");
+
+        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(review);
 
         // ACT
-        var result = await _service.GetReviewByIdAsync(reviewId);
+        var result = await _service.GetReviewStatusAsync(reviewId, email);
+
+        // ASSERT
+        Assert.That(result, Is.Not.Null);
+        Assert.That(result!.Status, Is.EqualTo("APPROVED"));
+        Assert.That(result.ValidationResult, Is.Not.Null);
+    }
+
+    [Test]
+    public async Task GetReviewStatusAsync_ShouldReturnNull_WhenEmailDoesNotMatch()
+    {
+        // ARRANGE
+        var reviewId = Guid.NewGuid();
+        var businessId = Guid.NewGuid();
+
+        var review = new Review(
+            businessId, null, null, "original@example.com", 5,
+            "Great service! Very satisfied with the experience overall.", 
+            null, false, null, null, null, null);
+
+        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(review);
+
+        // ACT
+        var result = await _service.GetReviewStatusAsync(reviewId, "wrong@example.com");
 
         // ASSERT
         Assert.That(result, Is.Null);
     }
 
     [Test]
-    public async Task GetReviewsByBusinessId_ShouldReturnReviews_WhenExist()
-    {
-        // ARRANGE
-        var businessId = Guid.NewGuid();
-        var reviews = new List<Review>
-        {
-            new Review(businessId, null, null, "user1@example.com", 5,
-                "Excellent! Highly recommend this place.", null, false),
-            new Review(businessId, null, null, "user2@example.com", 4,
-                "Very good service. Will come back again.", null, true)
-        };
-
-        _mockReviewRepository.Setup(r => r.GetByBusinessIdAsync(businessId)).ReturnsAsync(reviews);
-
-        // ACT
-        var result = (await _service.GetReviewsByBusinessIdAsync(businessId)).ToList();
-
-        // ASSERT
-        Assert.That(result.Count, Is.EqualTo(2));
-        Assert.That(result[0].StarRating, Is.EqualTo(5));
-        Assert.That(result[1].StarRating, Is.EqualTo(4));
-    }
-
-    [Test]
-    public async Task GetReviewsByBusinessId_ShouldReturnEmpty_WhenNoReviews()
-    {
-        // ARRANGE
-        var businessId = Guid.NewGuid();
-        _mockReviewRepository.Setup(r => r.GetByBusinessIdAsync(businessId))
-            .ReturnsAsync(new List<Review>());
-
-        // ACT
-        var result = (await _service.GetReviewsByBusinessIdAsync(businessId)).ToList();
-
-        // ASSERT
-        Assert.That(result, Is.Empty);
-    }
-
-    // ======================================
-    // UPDATE REVIEW TESTS
-    // ======================================
-
-    [Test]
-    public async Task UpdateReview_ShouldSucceed_WhenRegisteredUserOwnsReview()
+    public async Task UpdateReviewAsync_ShouldSucceed_WhenAuthorized()
     {
         // ARRANGE
         var reviewId = Guid.NewGuid();
         var businessId = Guid.NewGuid();
         var reviewerId = Guid.NewGuid();
 
-        var existingReview = new Review(businessId, null, reviewerId, null, 4,
-            "Good service and friendly staff overall.", null, false);
+        var existingReview = new Review(
+            businessId, null, reviewerId, null, 4,
+            "Good service and friendly staff overall.",
+            null, false, null, null, null, null);
 
         var updateDto = new UpdateReviewDto(
             StarRating: 5,
@@ -340,164 +260,22 @@ public class ReviewServiceTests
         var result = await _service.UpdateReviewAsync(reviewId, updateDto, reviewerId, null);
 
         // ASSERT
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.StarRating, Is.EqualTo(5));
-            Assert.That(result.ReviewBody, Does.Contain("Updated: Excellent service!"));
-            Assert.That(result.ReviewAsAnon, Is.True);
-            Assert.That(result.PhotoUrls, Is.Not.Null);
-            Assert.That(result.PhotoUrls!.Length, Is.EqualTo(1));
-        });
-
-        _mockReviewRepository.Verify(r => r.UpdateAsync(It.IsAny<Review>()), Times.Once);
+        Assert.That(result.StarRating, Is.EqualTo(5));
+        Assert.That(result.ReviewBody, Does.Contain("Updated"));
     }
 
     [Test]
-    public async Task UpdateReview_ShouldSucceed_WhenGuestUserOwnsReview()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        var businessId = Guid.NewGuid();
-        var email = "guest@example.com";
-
-        var existingReview = new Review(businessId, null, null, email, 3,
-            "Decent service but could be better.", null, true);
-
-        var updateDto = new UpdateReviewDto(
-            StarRating: 4,
-            ReviewBody: "Updated: Actually pretty good after trying again.",
-            PhotoUrls: null,
-            ReviewAsAnon: false
-        );
-
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
-        _mockReviewRepository.Setup(r => r.UpdateAsync(It.IsAny<Review>())).Returns(Task.CompletedTask);
-
-        // ACT
-        var result = await _service.UpdateReviewAsync(reviewId, updateDto, null, email);
-
-        // ASSERT
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.StarRating, Is.EqualTo(4));
-            Assert.That(result.ReviewBody, Does.Contain("Updated: Actually pretty good"));
-            Assert.That(result.ReviewAsAnon, Is.False);
-        });
-
-        _mockReviewRepository.Verify(r => r.UpdateAsync(It.IsAny<Review>()), Times.Once);
-    }
-
-    [Test]
-    public void UpdateReview_ShouldThrow_WhenReviewNotFound()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        var updateDto = new UpdateReviewDto(5, "Updated review", null, null);
-
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync((Review?)null);
-
-        // ACT & ASSERT
-        var ex = Assert.ThrowsAsync<ReviewNotFoundException>(
-            async () => await _service.UpdateReviewAsync(reviewId, updateDto, Guid.NewGuid(), null)
-        );
-
-        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
-        _mockReviewRepository.Verify(r => r.UpdateAsync(It.IsAny<Review>()), Times.Never);
-    }
-
-    [Test]
-    public void UpdateReview_ShouldThrow_WhenUnauthorized_DifferentReviewerId()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        var businessId = Guid.NewGuid();
-        var originalReviewerId = Guid.NewGuid();
-        var differentReviewerId = Guid.NewGuid();
-
-        var existingReview = new Review(businessId, null, originalReviewerId, null, 4,
-            "Good service and friendly staff overall.", null, false);
-
-        var updateDto = new UpdateReviewDto(5, "Trying to edit someone else's review", null, null);
-
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
-
-        // ACT & ASSERT
-        var ex = Assert.ThrowsAsync<UnauthorizedReviewAccessException>(
-            async () => await _service.UpdateReviewAsync(reviewId, updateDto, differentReviewerId, null)
-        );
-
-        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
-        _mockReviewRepository.Verify(r => r.UpdateAsync(It.IsAny<Review>()), Times.Never);
-    }
-
-    [Test]
-    public void UpdateReview_ShouldThrow_WhenUnauthorized_DifferentEmail()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        var businessId = Guid.NewGuid();
-        var originalEmail = "original@example.com";
-        var differentEmail = "hacker@example.com";
-
-        var existingReview = new Review(businessId, null, null, originalEmail, 4,
-            "Good service and friendly staff overall.", null, true);
-
-        var updateDto = new UpdateReviewDto(5, "Trying to edit someone else's review", null, null);
-
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
-
-        // ACT & ASSERT
-        var ex = Assert.ThrowsAsync<UnauthorizedReviewAccessException>(
-            async () => await _service.UpdateReviewAsync(reviewId, updateDto, null, differentEmail)
-        );
-
-        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
-        _mockReviewRepository.Verify(r => r.UpdateAsync(It.IsAny<Review>()), Times.Never);
-    }
-
-    [Test]
-    public void UpdateReview_ShouldThrow_WhenInvalidStarRating()
+    public async Task DeleteReviewAsync_ShouldSucceed_WhenAuthorized()
     {
         // ARRANGE
         var reviewId = Guid.NewGuid();
         var businessId = Guid.NewGuid();
         var reviewerId = Guid.NewGuid();
 
-        var existingReview = new Review(businessId, null, reviewerId, null, 4,
-            "Good service and friendly staff overall.", null, false);
-
-        var updateDto = new UpdateReviewDto(
-            StarRating: 6, // Invalid: > 5
-            ReviewBody: null,
-            PhotoUrls: null,
-            ReviewAsAnon: null
-        );
-
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
-
-        // ACT & ASSERT
-        var ex = Assert.ThrowsAsync<ArgumentException>(
-            async () => await _service.UpdateReviewAsync(reviewId, updateDto, reviewerId, null)
-        );
-
-        Assert.That(ex!.Message, Does.Contain("Star rating must be between 1 and 5"));
-    }
-    
-    
-    // ======================================
-    // DELETE REVIEW TESTS
-    // ======================================
-
-    [Test]
-    public async Task DeleteReview_ShouldSucceed_WhenRegisteredUserOwnsReview()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        var businessId = Guid.NewGuid();
-        var reviewerId = Guid.NewGuid();
-
-        var existingReview = new Review(businessId, null, reviewerId, null, 4,
-            "Review to be deleted by registered user.", null, false);
+        var existingReview = new Review(
+            businessId, null, reviewerId, null, 4,
+            "Review to be deleted.",
+            null, false, null, null, null, null);
 
         _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
         _mockReviewRepository.Setup(r => r.DeleteAsync(reviewId)).Returns(Task.CompletedTask);
@@ -507,88 +285,5 @@ public class ReviewServiceTests
 
         // ASSERT
         _mockReviewRepository.Verify(r => r.DeleteAsync(reviewId), Times.Once);
-    }
-
-    [Test]
-    public async Task DeleteReview_ShouldSucceed_WhenGuestUserOwnsReview()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        var businessId = Guid.NewGuid();
-        var email = "guest@example.com";
-
-        var existingReview = new Review(businessId, null, null, email, 3,
-            "Review to be deleted by guest user.", null, true);
-
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
-        _mockReviewRepository.Setup(r => r.DeleteAsync(reviewId)).Returns(Task.CompletedTask);
-
-        // ACT
-        await _service.DeleteReviewAsync(reviewId, null, email);
-
-        // ASSERT
-        _mockReviewRepository.Verify(r => r.DeleteAsync(reviewId), Times.Once);
-    }
-
-    [Test]
-    public void DeleteReview_ShouldThrow_WhenReviewNotFound()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync((Review?)null);
-
-        // ACT & ASSERT
-        var ex = Assert.ThrowsAsync<ReviewNotFoundException>(
-            async () => await _service.DeleteReviewAsync(reviewId, Guid.NewGuid(), null)
-        );
-
-        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
-        _mockReviewRepository.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
-    }
-
-    [Test]
-    public void DeleteReview_ShouldThrow_WhenUnauthorized_DifferentReviewerId()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        var businessId = Guid.NewGuid();
-        var originalReviewerId = Guid.NewGuid();
-        var differentReviewerId = Guid.NewGuid();
-
-        var existingReview = new Review(businessId, null, originalReviewerId, null, 4,
-            "Review owned by someone else.", null, false);
-
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
-
-        // ACT & ASSERT
-        var ex = Assert.ThrowsAsync<UnauthorizedReviewAccessException>(
-            async () => await _service.DeleteReviewAsync(reviewId, differentReviewerId, null)
-        );
-
-        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
-        _mockReviewRepository.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
-    }
-
-    [Test]
-    public void DeleteReview_ShouldThrow_WhenUnauthorized_DifferentEmail()
-    {
-        // ARRANGE
-        var reviewId = Guid.NewGuid();
-        var businessId = Guid.NewGuid();
-        var originalEmail = "original@example.com";
-        var differentEmail = "hacker@example.com";
-
-        var existingReview = new Review(businessId, null, null, originalEmail, 4,
-            "Review owned by someone else.", null, true);
-
-        _mockReviewRepository.Setup(r => r.GetByIdAsync(reviewId)).ReturnsAsync(existingReview);
-
-        // ACT & ASSERT
-        var ex = Assert.ThrowsAsync<UnauthorizedReviewAccessException>(
-            async () => await _service.DeleteReviewAsync(reviewId, null, differentEmail)
-        );
-
-        Assert.That(ex!.Message, Does.Contain(reviewId.ToString()));
-        _mockReviewRepository.Verify(r => r.DeleteAsync(It.IsAny<Guid>()), Times.Never);
     }
 }

@@ -9,10 +9,11 @@
 
     <ItemGroup>
         <PackageReference Include="Dapper" Version="2.1.66"/>
+        <PackageReference Include="Dapr.AspNetCore" Version="1.16.1" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.10"/>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9"/>
         <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.0-rc.2.25502.107"/>
-        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0-rc.2.25502.107"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
         <PackageReference Include="Npgsql" Version="10.0.0-rc.1"/>
         <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="9.0.6"/>
         <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="9.0.6"/>
